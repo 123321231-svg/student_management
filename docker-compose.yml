@@ -1,0 +1,15 @@
+services:
+  student-management:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: change-this-before-public-deployment
+      ADMIN_INITIAL_PASSWORD: change-admin-password
+      COOKIE_SECURE: "0"
+      DATABASE_PATH: /data/students.db
+    volumes:
+      - student_data:/data
+
+volumes:
+  student_data:
