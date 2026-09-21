@@ -33,3 +33,8 @@ def build_score_stats(scores: list[float]) -> dict:
         "excellent_rate": round(sum(score >= 85 for score in scores) / count * 100, 1) if count else 0,
         "bands": bands,
     }
+
+
+def student_export_values(row) -> list:
+    """Return an ordered export row for SQLite Row or PostgreSQL dict_row."""
+    return [row["student_id"], row["name"], row["age"], row["score"]]

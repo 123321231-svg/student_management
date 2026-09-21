@@ -13,5 +13,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements-web.txt
-      - run: python -m unittest -v test_database.py test_webapp.py
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check webapp desktop_launcher.py test_database.py test_webapp.py test_launcher.py test_orm.py test_services.py
+      - run: coverage run -m unittest -v test_database.py test_webapp.py test_launcher.py test_orm.py test_services.py
+      - run: coverage report

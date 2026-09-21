@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title"><div><span class="eyebrow">ACADEMIC DOMAIN</span><h1>教务数据</h1><p class="muted">班级、课程与考试构成学业分析的数据基础。</p></div><a class="btn secondary" href="/docs">查看 API 文档</a></div>
+<div class="grid">
+  <div class="card metric-card"><div class="metric-label">班级数量</div><div class="metric-value">{{ classes|length }}</div></div>
+  <div class="card metric-card"><div class="metric-label">课程数量</div><div class="metric-value">{{ courses|length }}</div></div>
+  <div class="card metric-card"><div class="metric-label">考试数量</div><div class="metric-value">{{ assessments|length }}</div></div>
+  <div class="card metric-card"><div class="metric-label">数据入口</div><div class="metric-value" style="font-size:18px">REST API</div><div class="metric-note">/api/v1</div></div>
+</div>
+<div class="two-col">
+  <div class="card"><h2>班级</h2>{% if classes %}<div class="table-wrap"><table><thead><tr><th>年级</th><th>专业</th><th>班级</th></tr></thead><tbody>{% for item in classes %}<tr><td>{{ item.grade }}</td><td>{{ item.major }}</td><td>{{ item.name }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state">通过 API 创建第一个班级</div>{% endif %}</div>
+  <div class="card"><h2>课程与考试</h2>{% if courses %}<div class="table-wrap"><table><thead><tr><th>编号</th><th>课程</th><th>学分</th></tr></thead><tbody>{% for item in courses %}<tr><td>{{ item.code }}</td><td>{{ item.name }}</td><td>{{ item.credits }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state">通过 API 创建课程与考试</div>{% endif %}</div>
+</div>
+{% endblock %}

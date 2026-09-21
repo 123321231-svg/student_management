@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 
 
@@ -10,7 +11,13 @@ class WebAppSmokeTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp_dir = tempfile.TemporaryDirectory()
         os.environ["DATABASE_PATH"] = str(Path(cls.temp_dir.name) / "test.db")
+        warnings.filterwarnings(
+            "ignore",
+            message="Using `httpx` with `starlette.testclient` is deprecated",
+            category=Warning,
+        )
         from fastapi.testclient import TestClient
+
         from webapp.main import app
         cls.client = TestClient(app)
 
@@ -89,7 +96,7 @@ class WebAppSmokeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "ok", "service": "student-management", "version": "2.1.0"},
+            {"status": "ok", "service": "student-management", "version": "3.0.0"},
         )
 
     def test_admin_can_view_audit_log(self):
@@ -115,6 +122,117 @@ class WebAppSmokeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("系统至少需要保留一名管理员", response.text)
         self.assertIn('value="admin" selected', response.text)
+
+    def test_v3_api_requires_authentication(self):
+        self.client.get("/logout")
+
+        response = self.client.get("/api/v1/analytics/overview")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["detail"], "请先登录")
+
+    def test_v3_api_manages_academic_data_and_returns_analytics(self):
+        self._login_admin()
+
+        class_response = self.client.post(
+            "/api/v1/classes",
+            json={"name": "数据科学1班", "grade": "2025", "major": "数据科学"},
+        )
+        self.assertEqual(class_response.status_code, 201)
+        class_id = class_response.json()["id"]
+
+        student_response = self.client.post(
+            "/api/v1/students",
+            json={
+                "student_id": "DS2025001",
+                "name": "学习示例",
+                "age": 19,
+                "class_group_id": class_id,
+            },
+        )
+        self.assertEqual(student_response.status_code, 201)
+        student_id = student_response.json()["id"]
+
+        student_list = self.client.get("/api/v1/students?page=1&page_size=1&q=DS2025")
+        self.assertEqual(student_list.status_code, 200)
+        self.assertEqual(student_list.json()["page"], 1)
+        self.assertEqual(student_list.json()["page_size"], 1)
+        self.assertGreaterEqual(student_list.json()["total"], 1)
+        self.assertEqual(student_list.json()["items"][0]["student_id"], "DS2025001")
+
+        course_response = self.client.post(
+            "/api/v1/courses",
+            json={"code": "PY101", "name": "Python 数据分析", "credits": 3.0},
+        )
+        self.assertEqual(course_response.status_code, 201)
+        course_id = course_response.json()["id"]
+
+        first_exam = self.client.post(
+            "/api/v1/assessments",
+            json={"course_id": course_id, "name": "阶段测试一", "exam_date": "2026-03-01"},
+        )
+        second_exam = self.client.post(
+            "/api/v1/assessments",
+            json={"course_id": course_id, "name": "阶段测试二", "exam_date": "2026-04-01"},
+        )
+        self.assertEqual(first_exam.status_code, 201)
+        self.assertEqual(second_exam.status_code, 201)
+
+        for assessment, score in ((first_exam, 58), (second_exam, 52)):
+            response = self.client.post(
+                "/api/v1/scores",
+                json={
+                    "student_id": student_id,
+                    "assessment_id": assessment.json()["id"],
+                    "score": score,
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+
+        overview = self.client.get("/api/v1/analytics/overview")
+        self.assertEqual(overview.status_code, 200)
+        data = overview.json()
+        self.assertEqual(data["class_count"], 1)
+        self.assertEqual(data["course_count"], 1)
+        self.assertEqual(data["assessment_count"], 2)
+        self.assertEqual(data["score_count"], 2)
+        self.assertEqual(data["average"], 55.0)
+        self.assertEqual(data["pass_rate"], 0.0)
+        self.assertEqual(data["risk_student_count"], 1)
+
+        trend = self.client.get(f"/api/v1/analytics/students/{student_id}/trend")
+        self.assertEqual(trend.status_code, 200)
+        self.assertEqual(trend.json()["scores"], [58.0, 52.0])
+        self.assertEqual(trend.json()["direction"], "down")
+        self.assertEqual(trend.json()["change"], -6.0)
+        self.assertIn("连续不及格", trend.json()["risk_reasons"])
+
+        quality = self.client.get("/api/v1/analytics/data-quality")
+        self.assertEqual(quality.status_code, 200)
+        self.assertGreaterEqual(quality.json()["missing_email_count"], 1)
+        self.assertEqual(quality.json()["orphan_score_count"], 0)
+
+    def test_v3_score_rejects_value_above_one_hundred(self):
+        self._login_admin()
+        response = self.client.post(
+            "/api/v1/scores",
+            json={"student_id": 1, "assessment_id": 1, "score": 101},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_v3_academic_and_analytics_pages_are_available(self):
+        self._login_admin()
+
+        academics = self.client.get("/academics")
+        analytics = self.client.get("/analytics")
+
+        self.assertEqual(academics.status_code, 200)
+        self.assertIn("教务数据", academics.text)
+        self.assertIn("课程与考试", academics.text)
+        self.assertEqual(analytics.status_code, 200)
+        self.assertIn("数据分析中心", analytics.text)
+        self.assertIn("学业风险", analytics.text)
 
     def _login_admin(self):
         self.client.get("/logout")

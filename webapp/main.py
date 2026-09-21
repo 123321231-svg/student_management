@@ -7,16 +7,19 @@ from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook, load_workbook
+from sqlalchemy import select
 from starlette.middleware.sessions import SessionMiddleware
 
+from .api_v1 import create_api_router
 from .db import connection, init_db, write_audit
+from .orm import Assessment, ClassGroup, Course, ScoreRecord, Student, init_orm, orm_session, seed_admin
 from .security import hash_password, new_csrf_token, verify_password
-from .services import build_score_stats, parse_student
-
+from .services import build_score_stats, parse_student, student_export_values
 
 BASE_DIR = Path(__file__).resolve().parent
+VERSION = "3.0.0"
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-app = FastAPI(title="学生信息管理系统", version="2.1.0")
+app = FastAPI(title="学生学业数据分析与管理平台", version=VERSION)
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SECRET_KEY", "change-this-secret-key-in-production"),
@@ -27,6 +30,8 @@ app.add_middleware(
 
 def startup() -> None:
     init_db()
+    init_orm()
+    seed_admin()
 
 
 startup()
@@ -87,6 +92,9 @@ def require_write_user(request: Request):
     return user
 
 
+app.include_router(create_api_router(require_user))
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return RedirectResponse("/dashboard" if require_user(request) else "/login", status_code=303)
@@ -94,7 +102,7 @@ def index(request: Request):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "student-management", "version": "2.1.0"}
+    return {"status": "ok", "service": "student-management", "version": VERSION}
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -143,11 +151,12 @@ def register(
         return render(request, "register.html", title="注册", error="两次输入的密码不一致")
     with connection() as conn:
         try:
-            cursor = conn.execute(
+            conn.execute(
                 "INSERT INTO users(username, full_name, password_hash, role) VALUES (?, ?, ?, 'viewer')",
                 (username, full_name, hash_password(password)),
             )
-            write_audit(conn, cursor.lastrowid, "register", "用户注册")
+            created_user = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+            write_audit(conn, created_user["id"], "register", "用户注册")
         except Exception:
             return render(request, "register.html", title="注册", error="用户名已存在")
     request.session["message"] = "注册成功，请登录"
@@ -165,6 +174,59 @@ def dashboard(request: Request):
     if not require_user(request):
         return redirect_login()
     return render(request, "dashboard.html", title="仪表盘")
+
+
+@app.get("/academics", response_class=HTMLResponse)
+def academics(request: Request):
+    if not require_user(request):
+        return redirect_login()
+    with orm_session() as session:
+        classes = session.scalars(select(ClassGroup).order_by(ClassGroup.grade.desc(), ClassGroup.name)).all()
+        courses = session.scalars(select(Course).order_by(Course.code)).all()
+        assessments = session.scalars(select(Assessment).order_by(Assessment.exam_date.desc())).all()
+        class_rows = [{"id": row.id, "name": row.name, "grade": row.grade, "major": row.major} for row in classes]
+        course_rows = [
+            {"id": row.id, "code": row.code, "name": row.name, "credits": row.credits, "teacher_name": row.teacher_name}
+            for row in courses
+        ]
+        assessment_rows = [
+            {
+                "id": row.id,
+                "name": row.name,
+                "course_name": row.course.name,
+                "exam_date": row.exam_date,
+                "max_score": row.max_score,
+            }
+            for row in assessments
+        ]
+    return render(
+        request,
+        "academics.html",
+        title="教务数据",
+        classes=class_rows,
+        courses=course_rows,
+        assessments=assessment_rows,
+    )
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+def analytics_page(request: Request):
+    if not require_user(request):
+        return redirect_login()
+    with orm_session() as session:
+        students = session.scalars(select(Student)).all()
+        scores = session.scalars(select(ScoreRecord)).all()
+        failed_counts: dict[int, int] = {}
+        for score in scores:
+            if score.score < 60:
+                failed_counts[score.student_id] = failed_counts.get(score.student_id, 0) + 1
+        risk_ids = {student_id for student_id, count in failed_counts.items() if count >= 2}
+        risk_students = [
+            {"id": student.id, "student_id": student.student_id, "name": student.name, "failed_count": failed_counts[student.id]}
+            for student in students
+            if student.id in risk_ids
+        ]
+    return render(request, "analytics.html", title="数据分析中心", risk_students=risk_students)
 
 
 @app.get("/students", response_class=HTMLResponse)
@@ -264,7 +326,7 @@ def export_students(request: Request, q: str = Query(default="")):
     sheet.title = "学生信息"
     sheet.append(["学号", "姓名", "年龄", "成绩"])
     for row in rows:
-        sheet.append(list(row))
+        sheet.append(student_export_values(row))
     for column in sheet.columns:
         sheet.column_dimensions[column[0].column_letter].width = 18
     output = io.BytesIO()

@@ -50,7 +50,7 @@
 <body>
 {% if user %}
 <header class="topbar"><div class="brand">学生信息管理系统</div><div>{{ user['full_name'] }} · {{ user['role'] }} <a href="/logout">退出登录</a></div></header>
-<div class="layout"><aside class="sidebar"><div class="nav-title">系统菜单</div><a class="nav-link" href="/dashboard">仪表盘</a><a class="nav-link" href="/students">学生管理</a>{% if user['role'] == 'admin' %}<a class="nav-link" href="/users">用户与权限</a><a class="nav-link" href="/audit-logs">审计日志</a>{% endif %}</aside><main class="content">
+<div class="layout"><aside class="sidebar"><div class="nav-title">系统菜单</div><a class="nav-link" href="/dashboard">仪表盘</a><a class="nav-link" href="/students">学生管理</a><a class="nav-link" href="/academics">教务数据</a><a class="nav-link" href="/analytics">分析中心</a>{% if user['role'] == 'admin' %}<a class="nav-link" href="/users">用户与权限</a><a class="nav-link" href="/audit-logs">审计日志</a>{% endif %}</aside><main class="content">
 {% if message %}<div class="message">{{ message }}</div>{% endif %}
 {% block content %}{% endblock %}
 </main></div>

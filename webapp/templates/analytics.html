@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-title"><div><span class="eyebrow">DATA ANALYTICS</span><h1>数据分析中心</h1><p class="muted">使用 Pandas 与可解释规则发现成绩趋势和学业风险。</p></div></div>
+<div class="grid">
+  <div class="card metric-card"><div class="metric-label">班级数</div><div class="metric-value" id="class_count">-</div></div>
+  <div class="card metric-card"><div class="metric-label">课程数</div><div class="metric-value" id="course_count">-</div></div>
+  <div class="card metric-card"><div class="metric-label">平均成绩</div><div class="metric-value" id="average">-</div></div>
+  <div class="card metric-card"><div class="metric-label">风险学生</div><div class="metric-value" id="risk_student_count">-</div></div>
+</div>
+<div class="two-col">
+  <div class="card"><h2>学业风险</h2><p class="muted">当前规则：累计两次及以上不及格。</p>{% if risk_students %}<table><thead><tr><th>学号</th><th>姓名</th><th>不及格次数</th></tr></thead><tbody>{% for item in risk_students %}<tr><td>{{ item.student_id }}</td><td>{{ item.name }}</td><td><span class="role">{{ item.failed_count }}</span></td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty-state">暂无风险学生</div>{% endif %}</div>
+  <div class="card"><h2>数据质量</h2><div class="feature-list"><div><strong id="missing_email_count">-</strong><span>缺少邮箱的学生记录</span></div><div><strong id="orphan_score_count">-</strong><span>无对应学生的成绩记录</span></div></div></div>
+</div>
+<script>
+Promise.all([fetch('/api/v1/analytics/overview').then(r=>r.json()),fetch('/api/v1/analytics/data-quality').then(r=>r.json())]).then(([overview,quality])=>{['class_count','course_count','average','risk_student_count'].forEach(k=>document.getElementById(k).textContent=overview[k]);['missing_email_count','orphan_score_count'].forEach(k=>document.getElementById(k).textContent=quality[k]);});
+</script>
+{% endblock %}
