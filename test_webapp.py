@@ -83,6 +83,50 @@ class WebAppSmokeTest(unittest.TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
+    def test_health_endpoint_reports_ready_version(self):
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"status": "ok", "service": "student-management", "version": "2.1.0"},
+        )
+
+    def test_admin_can_view_audit_log(self):
+        self._login_admin()
+
+        response = self.client.get("/audit-logs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("审计日志", response.text)
+        self.assertIn("用户登录", response.text)
+
+    def test_admin_cannot_remove_last_admin(self):
+        self._login_admin()
+        users_page = self.client.get("/users")
+        csrf = self._csrf(users_page.text)
+
+        response = self.client.post(
+            "/users/1/role",
+            data={"csrf_token": csrf, "role": "viewer"},
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("系统至少需要保留一名管理员", response.text)
+        self.assertIn('value="admin" selected', response.text)
+
+    def _login_admin(self):
+        self.client.get("/logout")
+        login_page = self.client.get("/login")
+        csrf = self._csrf(login_page.text)
+        response = self.client.post(
+            "/login",
+            data={"csrf_token": csrf, "username": "admin", "password": "admin123"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 303)
+
     @staticmethod
     def _csrf(html):
         marker = 'name="csrf_token" value="'

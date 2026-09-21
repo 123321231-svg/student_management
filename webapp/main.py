@@ -11,11 +11,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .db import connection, init_db, write_audit
 from .security import hash_password, new_csrf_token, verify_password
+from .services import build_score_stats, parse_student
 
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-app = FastAPI(title="学生信息管理系统", version="2.0.0")
+app = FastAPI(title="学生信息管理系统", version="2.1.0")
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SECRET_KEY", "change-this-secret-key-in-production"),
@@ -86,23 +87,14 @@ def require_write_user(request: Request):
     return user
 
 
-def parse_student(student_id: str, name: str, age: str, score: str):
-    student_id = student_id.strip()
-    name = name.strip()
-    if not student_id or not name:
-        raise ValueError("学号和姓名不能为空")
-    parsed_age = int(age)
-    parsed_score = float(score)
-    if parsed_age <= 0:
-        raise ValueError("年龄必须大于0")
-    if not 0 <= parsed_score <= 100:
-        raise ValueError("成绩必须在0到100之间")
-    return student_id, name, parsed_age, parsed_score
-
-
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return RedirectResponse("/dashboard" if require_user(request) else "/login", status_code=303)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "student-management", "version": "2.1.0"}
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -321,17 +313,7 @@ def stats(request: Request):
         return {"error": "未登录"}
     with connection() as conn:
         rows = conn.execute("SELECT score FROM students").fetchall()
-    scores = [float(row["score"]) for row in rows]
-    bands = [0, 0, 0, 0]
-    for score in scores:
-        bands[0 if score < 60 else 1 if score < 70 else 2 if score < 85 else 3] += 1
-    return {
-        "count": len(scores),
-        "average": round(sum(scores) / len(scores), 2) if scores else 0,
-        "highest": max(scores) if scores else 0,
-        "lowest": min(scores) if scores else 0,
-        "bands": bands,
-    }
+    return build_score_stats([float(row["score"]) for row in rows])
 
 
 @app.get("/users", response_class=HTMLResponse)
@@ -344,6 +326,25 @@ def users(request: Request):
     return render(request, "users.html", title="用户与权限", users=rows)
 
 
+@app.get("/audit-logs", response_class=HTMLResponse)
+def audit_logs(request: Request):
+    user = require_user(request)
+    if not user or user["role"] != "admin":
+        return RedirectResponse("/dashboard", status_code=303)
+    with connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT audit_logs.id, audit_logs.action, audit_logs.detail,
+                   audit_logs.created_at, users.full_name
+            FROM audit_logs
+            LEFT JOIN users ON users.id = audit_logs.user_id
+            ORDER BY audit_logs.id DESC
+            LIMIT 200
+            """
+        ).fetchall()
+    return render(request, "audit_logs.html", title="审计日志", logs=rows)
+
+
 @app.post("/users/{user_id}/role")
 def update_role(user_id: int, request: Request, role: str = Form(...), csrf_token: str = Form(...)):
     user = require_user(request)
@@ -352,6 +353,13 @@ def update_role(user_id: int, request: Request, role: str = Form(...), csrf_toke
     if role not in {"admin", "teacher", "viewer"}:
         role = "viewer"
     with connection() as conn:
+        target = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        admin_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1"
+        ).fetchone()["count"]
+        if target and target["role"] == "admin" and role != "admin" and admin_count <= 1:
+            request.session["message"] = "系统至少需要保留一名管理员"
+            return RedirectResponse("/users", status_code=303)
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
         write_audit(conn, user["id"], "update_role", f"用户 {user_id} 设置为 {role}")
     request.session["message"] = "权限更新成功"

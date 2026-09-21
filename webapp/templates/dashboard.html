@@ -1,2 +1,18 @@
 {% extends "base.html" %}
-{% block content %}<div class="page-title"><div><h1>仪表盘</h1><p class="muted">学生信息、成绩统计和系统概览</p></div><a class="btn" href="/students">进入学生管理</a></div><div class="grid"><div class="card"><div class="metric-label">学生总数</div><div class="metric-value" id="count">-</div></div><div class="card"><div class="metric-label">平均成绩</div><div class="metric-value" id="average">-</div></div><div class="card"><div class="metric-label">最高成绩</div><div class="metric-value" id="highest">-</div></div><div class="card"><div class="metric-label">最低成绩</div><div class="metric-value" id="lowest">-</div></div></div><div class="two-col"><div class="card"><h2>成绩分布</h2><canvas id="scoreChart" height="220"></canvas></div><div class="card"><h2>系统说明</h2><p class="muted">系统支持学生信息搜索、增删改查、成绩统计、图表展示、Excel 导入导出，以及管理员、教师、查看者三种角色权限。</p><p class="muted">新注册用户默认是查看者，管理员可以在“用户与权限”中调整角色。</p></div></div><script>fetch('/api/stats').then(r=>r.json()).then(d=>{['count','average','highest','lowest'].forEach(k=>document.getElementById(k).textContent=d[k]);new Chart(document.getElementById('scoreChart'),{type:'bar',data:{labels:['不及格','及格','良好','优秀'],datasets:[{label:'学生人数',data:d.bands,backgroundColor:['#f97066','#fdb022','#53b1fd','#12b76a'],borderRadius:8}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});});</script>{% endblock %}
+{% block content %}
+<div class="hero page-title">
+  <div><span class="eyebrow">ACADEMIC INSIGHTS</span><h1>学业数据仪表盘</h1><p class="muted">从学生档案到成绩洞察，一处完成管理与分析。</p></div>
+  <a class="btn" href="/students">管理学生数据</a>
+</div>
+<div class="grid metrics-grid">
+  <div class="card metric-card"><div class="metric-label">学生总数</div><div class="metric-value" id="count">-</div><div class="metric-note">当前记录</div></div>
+  <div class="card metric-card"><div class="metric-label">平均成绩</div><div class="metric-value" id="average">-</div><div class="metric-note">满分 100</div></div>
+  <div class="card metric-card"><div class="metric-label">及格率</div><div class="metric-value"><span id="pass_rate">-</span><small>%</small></div><div class="metric-note">成绩 ≥ 60</div></div>
+  <div class="card metric-card"><div class="metric-label">优秀率</div><div class="metric-value"><span id="excellent_rate">-</span><small>%</small></div><div class="metric-note">成绩 ≥ 85</div></div>
+</div>
+<div class="two-col">
+  <div class="card chart-card"><div class="card-heading"><div><h2>成绩分布</h2><p class="muted">快速识别整体学习水平</p></div></div><canvas id="scoreChart" height="220"></canvas></div>
+  <div class="card"><h2>系统能力</h2><div class="feature-list"><div><strong>数据管理</strong><span>搜索、增删改查与 Excel 导入导出</span></div><div><strong>权限控制</strong><span>管理员、教师、查看者三级角色</span></div><div><strong>安全审计</strong><span>密码哈希、CSRF 防护与操作追踪</span></div></div></div>
+</div>
+<script>fetch('/api/stats').then(r=>r.json()).then(d=>{['count','average','pass_rate','excellent_rate'].forEach(k=>document.getElementById(k).textContent=d[k]);new Chart(document.getElementById('scoreChart'),{type:'bar',data:{labels:['不及格','及格','良好','优秀'],datasets:[{label:'学生人数',data:d.bands,backgroundColor:['#fb7185','#fbbf24','#60a5fa','#34d399'],borderRadius:10,maxBarThickness:64}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}}});});</script>
+{% endblock %}

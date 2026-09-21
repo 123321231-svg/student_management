@@ -1,6 +1,8 @@
 # 学生信息管理系统
 
-基于 FastAPI 的可部署学生信息管理系统，建立在原有 SQLite 学生数据和增删改查功能基础上，新增网页管理、登录注册、角色权限、成绩图表和 Excel 报表。
+基于 FastAPI 的学生信息管理与成绩分析平台。项目从 Python + SQLite 命令行程序逐步演进为包含登录权限、数据可视化、Excel 报表、审计日志、自动测试和 Docker 部署的网页系统，适合作为 Python 后端与数据分析的学习型作品集。
+
+> 当前稳定版：`v2.1.0`。后续 `v3.0.0` 将加入 SQLAlchemy、PostgreSQL、课程与考试模型以及更完整的数据分析中心。
 
 ## 功能
 
@@ -12,6 +14,10 @@
 - 用户注册和登录
 - 管理员、教师、查看者三种角色
 - 管理员调整用户权限
+- 防止系统最后一名管理员被降级
+- 关键操作审计日志
+- 及格率、优秀率和成绩分布分析
+- 健康检查接口：`/health`
 - CSRF 防护和密码哈希
 - SQLite 默认存储，支持通过环境变量切换数据库路径
 - Docker 和 Docker Compose 部署
@@ -73,6 +79,16 @@ DATABASE_PATH=/data/students.db
 ```bash
 python -m unittest -v test_database.py test_webapp.py
 ```
+
+GitHub Actions 会在每次推送和 Pull Request 时自动运行完整测试。
+
+## 学习路线
+
+- 命令行稳定版：提交 `9c24386`
+- FastAPI 基础版：提交 `41255d3`
+- FastAPI 润色版：标签 `v2.1.0`
+- 学习顺序与练习：[docs/learning-guide.md](docs/learning-guide.md)
+- 求职版设计：[docs/superpowers/specs/2026-09-21-student-analytics-platform-design.md](docs/superpowers/specs/2026-09-21-student-analytics-platform-design.md)
 
 ## 参考项目
 
