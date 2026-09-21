@@ -96,7 +96,7 @@ class WebAppSmokeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "ok", "service": "student-management", "version": "3.0.0"},
+            {"status": "ok", "service": "student-management", "version": "3.0.1"},
         )
 
     def test_admin_can_view_audit_log(self):

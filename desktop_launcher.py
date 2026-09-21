@@ -38,6 +38,13 @@ def configure_environment() -> None:
     os.environ.setdefault("COOKIE_SECURE", "0")
 
 
+def load_application():
+    """Import and return the ASGI object so frozen builds do not rely on source paths."""
+    from webapp.main import app
+
+    return app
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="学生学业数据分析平台 Windows 启动器")
     parser.add_argument("--check", action="store_true", help="只检查运行环境，不启动服务")
@@ -53,7 +60,7 @@ def main() -> None:
 
     import uvicorn
 
-    uvicorn.run("webapp.main:app", host="127.0.0.1", port=port, log_level="info")
+    uvicorn.run(load_application(), host="127.0.0.1", port=port, log_level="info")
 
 
 if __name__ == "__main__":

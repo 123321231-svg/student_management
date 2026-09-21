@@ -17,7 +17,7 @@ from .security import hash_password, new_csrf_token, verify_password
 from .services import build_score_stats, parse_student, student_export_values
 
 BASE_DIR = Path(__file__).resolve().parent
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app = FastAPI(title="学生学业数据分析与管理平台", version=VERSION)
 app.add_middleware(

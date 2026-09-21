@@ -1,6 +1,8 @@
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +21,14 @@ class DesktopLauncherTest(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertIsInstance(payload["available_port"], int)
         self.assertGreater(payload["available_port"], 0)
+
+    def test_launcher_loads_application_object_for_frozen_build(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.environ["DATABASE_PATH"] = str(Path(temp_dir) / "launcher-test.db")
+            from desktop_launcher import load_application
+            from webapp.main import app
+
+            self.assertIs(load_application(), app)
 
 
 if __name__ == "__main__":
